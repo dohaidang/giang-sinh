@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Christmas - Final Clean</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div class="loading-text">🎄 Loading Magic Christmas 🎄</div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-text" id="progress-text">0%</div>
+    </div>
+
+    <!-- Error Message (hidden by default) -->
+    <div id="error-message" class="error-message" style="display: none;">
+        <h2>⚠️ Error</h2>
+        <p id="error-details"></p>
+        <button onclick="location.reload()">Reload Page</button>
+    </div>
+
+    <div id="error-log"></div>
+    
+    <!-- Controls Toggle Button -->
+    <div id="toggle-controls" onclick="toggleControls()" title="Toggle Controls">⚙️</div>
+    
+    <!-- Controls Panel -->
+    <div id="controls-panel">
+        <div class="control-group">
+            <button class="control-btn" id="btnMute" onclick="toggleMute()">
+                <span id="mute-icon">🔊</span> <span id="mute-text">Mute</span>
+            </button>
+        </div>
+        
+        <div class="control-group">
+            <label class="control-label">Volume</label>
+            <div class="volume-container">
+                <input type="range" class="volume-slider" id="volumeSlider" 
+                       min="0" max="100" value="100" oninput="setVolume(this.value)">
+                <span class="volume-value" id="volumeValue">100%</span>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <button class="control-btn" onclick="toggleFullscreen()">
+                <span id="fullscreen-icon">🗖</span> <span id="fullscreen-text">Fullscreen</span>
+            </button>
+        </div>
+        
+        <div class="control-group">
+            <button class="control-btn" onclick="resetScene()">
+                🔄 Reset
+            </button>
+        </div>
+    </div>
+    
+    <div id="ui-layer">
+        <div class="guide" id="guide-text">
+            🖐 <b>Open:</b> Explode &nbsp;|&nbsp; 🫶 <b>Heart:</b> Love &nbsp;|&nbsp; ✊ <b>Fist:</b> Tree
+        </div>
+        <button id="btnStart" onclick="startSystem()">START MAGIC</button>
+    </div>
+
+    <div id="canvas-container"></div>
+    <video class="input_video" style="display:none"></video>
+    <canvas id="camera-preview"></canvas>
+
+    <!-- JavaScript Files -->
+    <script src="js/config.js"></script>
+    <script src="js/loader.js"></script>
+    <script src="js/resources.js"></script>
+    <script src="js/scene.js"></script>
+    <script src="js/controls.js"></script>
+    <script src="js/keyboard.js"></script>
+    <script src="js/hands.js"></script>
+</body>
+</html>
