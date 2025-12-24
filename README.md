@@ -18,7 +18,7 @@ A beautiful interactive 3D Christmas experience powered by Three.js and MediaPip
 
 ## 🚀 Live Demo
 
-Visit the live site: [https://dohaidang.github.io/merry-christmas/](https://dohaidang.github.io/merry-christmas/)
+Visit the live site: [https://dohaidang.github.io/giang-sinh/](https://dohaidang.github.io/giang-sinh/)
 
 ## 🛠️ Technologies Used
 
