@@ -1,47 +1,56 @@
 // ==========================================
-// V GESTURE DETECTION SYSTEM - IMPROVED
+// V GESTURE DETECTION SYSTEM - ENHANCED VISUALS
 // ==========================================
 
 // Configuration for V gesture detection
 const V_GESTURE_CONFIG = {
-    trailLength: 40,           // Number of points to track (increased)
-    minPoints: 15,             // Minimum points needed to detect V (reduced)
-    yMinDrop: 0.08,            // Minimum Y drop for V bottom (8% of screen)
-    yMinRise: 0.06,            // Minimum Y rise after bottom (6% of screen)
-    xMinMovement: 0.06,        // Minimum X movement (6% of screen width)
-    maxTimeWindow: 2000,       // Max time for gesture (2 seconds)
-    cooldownTime: 2000,        // Cooldown after detection (ms)
-    sparkleCount: 50,          // Number of sparkle particles
-    smoothingWindow: 3,        // Points to average for smoothing
-    detectionThreshold: 0.7,   // Confidence threshold (0-1)
-    debugMode: true            // Show debug info
+    trailLength: 40,
+    minPoints: 15,
+    yMinDrop: 0.08,
+    yMinRise: 0.06,
+    xMinMovement: 0.06,
+    maxTimeWindow: 2000,
+    cooldownTime: 2000,
+    sparkleCount: 80,
+    smoothingWindow: 3,
+    detectionThreshold: 0.7,
+    debugMode: false
 };
 
-// Trail storage for finger tip tracking
+// Trail storage
 let fingerTrail = [];
 let vGestureDetected = false;
 let lastVDetectionTime = 0;
 let sparkles = [];
+let snowflakes = [];
 let trailCanvas = null;
 let trailCtx = null;
 let isVGestureSystemActive = false;
-let vDetectionProgress = 0; // 0-100 progress indicator
+let vDetectionProgress = 0;
+let animationTime = 0;
+
+// Christmas colors palette
+const CHRISTMAS_COLORS = {
+    gold: ['#FFD700', '#FFC125', '#FFB90F', '#FFEC8B'],
+    red: ['#FF0000', '#DC143C', '#B22222', '#FF6347'],
+    green: ['#00FF00', '#32CD32', '#228B22', '#7CFC00'],
+    white: ['#FFFFFF', '#F0F8FF', '#FFFAFA', '#F5F5F5'],
+    blue: ['#00BFFF', '#87CEEB', '#ADD8E6', '#B0E0E6']
+};
 
 // Initialize V gesture detection system
 function initVGestureSystem() {
     if (isVGestureSystemActive) return;
     isVGestureSystemActive = true;
     
-    // Create trail canvas
     createTrailCanvas();
-    
-    // Start animation loop for sparkles
+    initSnowflakes();
     requestAnimationFrame(updateSparkles);
     
-    console.log('V Gesture System initialized (Improved)');
+    console.log('V Gesture System initialized (Enhanced)');
 }
 
-// Create the overlay canvas for drawing trail
+// Create overlay canvas
 function createTrailCanvas() {
     trailCanvas = document.getElementById('v-trail-canvas');
     if (!trailCanvas) {
@@ -54,16 +63,34 @@ function createTrailCanvas() {
     trailCanvas.height = window.innerHeight;
     trailCtx = trailCanvas.getContext('2d');
     
-    // Handle resize
     window.addEventListener('resize', () => {
         if (trailCanvas) {
             trailCanvas.width = window.innerWidth;
             trailCanvas.height = window.innerHeight;
+            initSnowflakes();
         }
     });
 }
 
-// Smooth a value using moving average
+// Initialize background snowflakes
+function initSnowflakes() {
+    snowflakes = [];
+    const count = Math.min(100, Math.floor(window.innerWidth / 15));
+    
+    for (let i = 0; i < count; i++) {
+        snowflakes.push({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight,
+            size: 1 + Math.random() * 3,
+            speed: 0.3 + Math.random() * 0.7,
+            wobble: Math.random() * Math.PI * 2,
+            wobbleSpeed: 0.02 + Math.random() * 0.03,
+            opacity: 0.3 + Math.random() * 0.5
+        });
+    }
+}
+
+// Smooth points
 function smoothPoints(points, windowSize) {
     if (points.length < windowSize) return points;
     
@@ -86,36 +113,33 @@ function smoothPoints(points, windowSize) {
     return smoothed;
 }
 
-// Add a point to the finger trail
+// Get random color from palette
+function getRandomColor(palette) {
+    const colors = CHRISTMAS_COLORS[palette] || CHRISTMAS_COLORS.gold;
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// Add trail point
 function addTrailPoint(x, y) {
     const now = Date.now();
-    
-    // Convert normalized coordinates (0-1) to screen coordinates
     const screenX = x * window.innerWidth;
     const screenY = y * window.innerHeight;
     
-    // Remove old points (older than maxTimeWindow)
     while (fingerTrail.length > 0 && now - fingerTrail[0].time > V_GESTURE_CONFIG.maxTimeWindow) {
         fingerTrail.shift();
     }
     
-    fingerTrail.push({
-        x: x,           // Normalized X (0-1)
-        y: y,           // Normalized Y (0-1)
-        screenX: screenX,
-        screenY: screenY,
-        time: now
-    });
+    fingerTrail.push({ x, y, screenX, screenY, time: now });
     
-    // Keep only recent points
     while (fingerTrail.length > V_GESTURE_CONFIG.trailLength) {
         fingerTrail.shift();
     }
     
-    // Create sparkle at current position
-    createSparkle(screenX, screenY);
+    // Create multiple sparkles for richer effect
+    for (let i = 0; i < 3; i++) {
+        createSparkle(screenX + (Math.random() - 0.5) * 20, screenY + (Math.random() - 0.5) * 20);
+    }
     
-    // Check for V gesture
     if (!vGestureDetected && fingerTrail.length >= V_GESTURE_CONFIG.minPoints) {
         if (now - lastVDetectionTime > V_GESTURE_CONFIG.cooldownTime) {
             const result = detectVGesture();
@@ -128,7 +152,7 @@ function addTrailPoint(x, y) {
     }
 }
 
-// Find the lowest point (bottom of V) in the trail
+// Find lowest point
 function findLowestPoint(points) {
     let lowestIdx = 0;
     let lowestY = -Infinity;
@@ -143,14 +167,7 @@ function findLowestPoint(points) {
     return { index: lowestIdx, y: lowestY };
 }
 
-// Calculate the slope/direction of movement
-function calculateSlope(p1, p2) {
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    return { dx, dy, angle: Math.atan2(dy, dx) };
-}
-
-// Improved V gesture detection
+// Detect V gesture
 function detectVGesture() {
     const result = { detected: false, confidence: 0, reason: '' };
     
@@ -159,15 +176,11 @@ function detectVGesture() {
         return result;
     }
     
-    // Smooth the points to reduce noise
     const points = smoothPoints(fingerTrail, V_GESTURE_CONFIG.smoothingWindow);
     const n = points.length;
-    
-    // Find the lowest point (bottom of V)
     const lowest = findLowestPoint(points);
     const bottomIdx = lowest.index;
     
-    // Bottom should be somewhere in the middle (not at the edges)
     const minBottomIdx = Math.floor(n * 0.2);
     const maxBottomIdx = Math.floor(n * 0.8);
     
@@ -177,23 +190,17 @@ function detectVGesture() {
         return result;
     }
     
-    // Get start, bottom, and end points
     const startPoint = points[0];
     const bottomPoint = points[bottomIdx];
     const endPoint = points[n - 1];
     
-    // Calculate Y movements
-    const dropFromStart = bottomPoint.y - startPoint.y;  // Should be positive (going down)
-    const riseToEnd = bottomPoint.y - endPoint.y;        // Should be positive (going up)
+    const dropFromStart = bottomPoint.y - startPoint.y;
+    const riseToEnd = bottomPoint.y - endPoint.y;
+    const xMovement = endPoint.x - startPoint.x;
     
-    // Calculate X movement
-    const xMovement = endPoint.x - startPoint.x;         // Should be positive (left to right)
-    
-    // Check conditions with scoring
     let score = 0;
     let maxScore = 0;
     
-    // Condition 1: Significant drop from start to bottom (weight: 30)
     maxScore += 30;
     if (dropFromStart > V_GESTURE_CONFIG.yMinDrop) {
         score += 30;
@@ -201,7 +208,6 @@ function detectVGesture() {
         score += 15;
     }
     
-    // Condition 2: Significant rise from bottom to end (weight: 30)
     maxScore += 30;
     if (riseToEnd > V_GESTURE_CONFIG.yMinRise) {
         score += 30;
@@ -209,7 +215,6 @@ function detectVGesture() {
         score += 15;
     }
     
-    // Condition 3: X moves from left to right (weight: 20)
     maxScore += 20;
     if (xMovement > V_GESTURE_CONFIG.xMinMovement) {
         score += 20;
@@ -217,15 +222,9 @@ function detectVGesture() {
         score += 10;
     }
     
-    // Condition 4: Check slopes - first half should go down-right, second half should go up-right (weight: 20)
     maxScore += 20;
-    const firstHalf = calculateSlope(startPoint, bottomPoint);
-    const secondHalf = calculateSlope(bottomPoint, endPoint);
-    
-    // First half: angle should be between 0 and PI/2 (going down-right)
-    // Second half: angle should be between -PI/2 and 0 (going up-right)
-    const firstHalfCorrect = firstHalf.dx > 0 && firstHalf.dy > 0;
-    const secondHalfCorrect = secondHalf.dx > 0 && secondHalf.dy < 0;
+    const firstHalfCorrect = (bottomPoint.x - startPoint.x) > 0 && (bottomPoint.y - startPoint.y) > 0;
+    const secondHalfCorrect = (endPoint.x - bottomPoint.x) > 0 && (endPoint.y - bottomPoint.y) < 0;
     
     if (firstHalfCorrect && secondHalfCorrect) {
         score += 20;
@@ -233,306 +232,431 @@ function detectVGesture() {
         score += 10;
     }
     
-    // Calculate confidence
     result.confidence = score / maxScore;
     
-    // Debug logging
-    if (V_GESTURE_CONFIG.debugMode && result.confidence > 0.3) {
-        console.log('V Detection:', {
-            confidence: (result.confidence * 100).toFixed(1) + '%',
-            dropFromStart: dropFromStart.toFixed(3),
-            riseToEnd: riseToEnd.toFixed(3),
-            xMovement: xMovement.toFixed(3),
-            bottomIdx: bottomIdx + '/' + n,
-            firstHalfCorrect,
-            secondHalfCorrect
-        });
-    }
-    
-    // Check if confidence exceeds threshold
     if (result.confidence >= V_GESTURE_CONFIG.detectionThreshold) {
         result.detected = true;
         result.reason = 'V gesture detected!';
-    } else {
-        result.reason = `Confidence too low: ${(result.confidence * 100).toFixed(1)}%`;
     }
     
     return result;
 }
 
-// Called when V gesture is successfully detected
+// V gesture detected
 function onVGestureDetected() {
     vGestureDetected = true;
     lastVDetectionTime = Date.now();
     
     console.log('🎄 V Gesture Activated! Starting Magic Christmas...');
     
-    // Create celebration sparkles
     createCelebrationSparkles();
+    createFireworks();
     
-    // Hide the V gesture hint
     const vHint = document.getElementById('v-gesture-hint');
     if (vHint) {
         vHint.style.opacity = '0';
-        setTimeout(() => {
-            vHint.style.display = 'none';
-        }, 500);
+        setTimeout(() => vHint.style.display = 'none', 500);
     }
     
-    // Clear trail
     fingerTrail = [];
     
-    // Start the main system after a short delay for effect
     setTimeout(() => {
         if (typeof startMainExperience === 'function') {
             startMainExperience();
         }
         
-        // Fade out trail canvas
         if (trailCanvas) {
-            trailCanvas.style.transition = 'opacity 1s ease-out';
+            trailCanvas.style.transition = 'opacity 1.5s ease-out';
             trailCanvas.style.opacity = '0';
-            setTimeout(() => {
-                trailCanvas.style.display = 'none';
-            }, 1000);
+            setTimeout(() => trailCanvas.style.display = 'none', 1500);
         }
-    }, 500);
+    }, 800);
 }
 
-// Create a sparkle particle at position
-function createSparkle(x, y) {
-    const colors = ['#FFD700', '#FF0000', '#00FF00', '#FFFFFF', '#FF69B4', '#00FFFF'];
+// Create sparkle
+function createSparkle(x, y, options = {}) {
+    const palettes = ['gold', 'red', 'green', 'white'];
+    const palette = options.palette || palettes[Math.floor(Math.random() * palettes.length)];
+    
     const sparkle = {
-        x: x,
-        y: y,
-        vx: (Math.random() - 0.5) * 4,
-        vy: (Math.random() - 0.5) * 4 - 2,
-        size: 2 + Math.random() * 4,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        x, y,
+        vx: (options.vx || 0) + (Math.random() - 0.5) * 6,
+        vy: (options.vy || 0) + (Math.random() - 0.5) * 6 - 2,
+        size: options.size || (2 + Math.random() * 5),
+        color: getRandomColor(palette),
         life: 1.0,
-        decay: 0.02 + Math.random() * 0.02,
+        decay: options.decay || (0.015 + Math.random() * 0.02),
         rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.3
+        rotationSpeed: (Math.random() - 0.5) * 0.4,
+        type: options.type || (Math.random() > 0.5 ? 'star' : 'circle'),
+        trail: [],
+        maxTrail: 5
     };
+    
     sparkles.push(sparkle);
     
-    // Limit sparkles
-    while (sparkles.length > V_GESTURE_CONFIG.sparkleCount * 3) {
+    while (sparkles.length > V_GESTURE_CONFIG.sparkleCount * 4) {
         sparkles.shift();
     }
 }
 
-// Create celebration sparkles when V is detected
+// Create celebration sparkles
 function createCelebrationSparkles() {
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     
-    for (let i = 0; i < 150; i++) {
-        const angle = (i / 150) * Math.PI * 2;
-        const distance = 50 + Math.random() * 150;
-        const x = centerX + Math.cos(angle) * distance;
-        const y = centerY + Math.sin(angle) * distance;
+    // Burst from center
+    for (let i = 0; i < 200; i++) {
+        const angle = (i / 200) * Math.PI * 2;
+        const speed = 5 + Math.random() * 15;
+        const distance = Math.random() * 50;
         
-        createSparkle(x, y);
+        createSparkle(
+            centerX + Math.cos(angle) * distance,
+            centerY + Math.sin(angle) * distance,
+            {
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 3 + Math.random() * 6,
+                decay: 0.01 + Math.random() * 0.01,
+                type: 'star'
+            }
+        );
     }
 }
 
-// Update and render sparkles
+// Create fireworks effect
+function createFireworks() {
+    const positions = [
+        { x: window.innerWidth * 0.2, y: window.innerHeight * 0.3 },
+        { x: window.innerWidth * 0.8, y: window.innerHeight * 0.3 },
+        { x: window.innerWidth * 0.5, y: window.innerHeight * 0.2 }
+    ];
+    
+    positions.forEach((pos, idx) => {
+        setTimeout(() => {
+            for (let i = 0; i < 80; i++) {
+                const angle = (i / 80) * Math.PI * 2;
+                const speed = 3 + Math.random() * 8;
+                
+                createSparkle(pos.x, pos.y, {
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 2,
+                    size: 2 + Math.random() * 4,
+                    decay: 0.012,
+                    palette: ['gold', 'red', 'green'][idx],
+                    type: 'star'
+                });
+            }
+        }, idx * 200);
+    });
+}
+
+// Update and render
 function updateSparkles() {
     if (!trailCtx || !trailCanvas) {
         requestAnimationFrame(updateSparkles);
         return;
     }
     
-    // Clear canvas with slight fade for trail effect
-    trailCtx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+    animationTime += 0.016;
+    
+    // Clear with fade
+    trailCtx.fillStyle = 'rgba(10, 10, 26, 0.1)';
     trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
     
-    // Draw trail line if not detected yet
+    // Draw snowflakes
+    drawSnowflakes();
+    
+    // Draw trail
     if (!vGestureDetected && fingerTrail.length > 1) {
         drawTrailLine();
         drawProgressIndicator();
     }
     
-    // Update and draw sparkles
+    // Update sparkles
     for (let i = sparkles.length - 1; i >= 0; i--) {
         const s = sparkles[i];
         
-        // Update physics
+        // Store trail
+        s.trail.push({ x: s.x, y: s.y });
+        if (s.trail.length > s.maxTrail) s.trail.shift();
+        
         s.x += s.vx;
         s.y += s.vy;
-        s.vy += 0.1; // Gravity
+        s.vy += 0.15;
+        s.vx *= 0.99;
         s.life -= s.decay;
         s.rotation += s.rotationSpeed;
         
-        // Remove dead sparkles
         if (s.life <= 0) {
             sparkles.splice(i, 1);
             continue;
         }
         
-        // Draw sparkle
         drawSparkle(s);
     }
     
     requestAnimationFrame(updateSparkles);
 }
 
+// Draw snowflakes
+function drawSnowflakes() {
+    snowflakes.forEach(snow => {
+        snow.y += snow.speed;
+        snow.wobble += snow.wobbleSpeed;
+        snow.x += Math.sin(snow.wobble) * 0.5;
+        
+        if (snow.y > window.innerHeight + 10) {
+            snow.y = -10;
+            snow.x = Math.random() * window.innerWidth;
+        }
+        
+        if (snow.x < -10) snow.x = window.innerWidth + 10;
+        if (snow.x > window.innerWidth + 10) snow.x = -10;
+        
+        trailCtx.save();
+        trailCtx.globalAlpha = snow.opacity * (vGestureDetected ? 0.3 : 1);
+        trailCtx.fillStyle = '#FFFFFF';
+        trailCtx.shadowColor = '#FFFFFF';
+        trailCtx.shadowBlur = 5;
+        
+        trailCtx.beginPath();
+        trailCtx.arc(snow.x, snow.y, snow.size, 0, Math.PI * 2);
+        trailCtx.fill();
+        
+        trailCtx.restore();
+    });
+}
+
 // Draw progress indicator
 function drawProgressIndicator() {
-    if (vDetectionProgress < 10) return;
+    if (vDetectionProgress < 5) return;
     
     const centerX = window.innerWidth / 2;
-    const y = 50;
-    const width = 200;
-    const height = 8;
+    const y = 60;
+    const width = 250;
+    const height = 12;
+    const radius = 6;
     
     // Background
-    trailCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    trailCtx.fillRect(centerX - width/2 - 2, y - 2, width + 4, height + 4);
+    trailCtx.save();
+    trailCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    trailCtx.shadowBlur = 10;
     
-    // Progress bar background
-    trailCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    trailCtx.fillRect(centerX - width/2, y, width, height);
+    trailCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    trailCtx.beginPath();
+    trailCtx.roundRect(centerX - width/2 - 4, y - 4, width + 8, height + 8, radius + 2);
+    trailCtx.fill();
     
-    // Progress bar fill
+    // Progress track
+    trailCtx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    trailCtx.beginPath();
+    trailCtx.roundRect(centerX - width/2, y, width, height, radius);
+    trailCtx.fill();
+    
+    // Progress fill
     const fillWidth = (vDetectionProgress / 100) * width;
     const gradient = trailCtx.createLinearGradient(centerX - width/2, 0, centerX + width/2, 0);
     
-    if (vDetectionProgress < 50) {
+    if (vDetectionProgress < 40) {
         gradient.addColorStop(0, '#FF6B6B');
         gradient.addColorStop(1, '#FFD700');
     } else if (vDetectionProgress < 70) {
         gradient.addColorStop(0, '#FFD700');
-        gradient.addColorStop(1, '#00FF00');
+        gradient.addColorStop(1, '#32CD32');
     } else {
-        gradient.addColorStop(0, '#00FF00');
-        gradient.addColorStop(1, '#00FFFF');
+        gradient.addColorStop(0, '#32CD32');
+        gradient.addColorStop(0.5, '#00FFFF');
+        gradient.addColorStop(1, '#FFD700');
     }
     
     trailCtx.fillStyle = gradient;
-    trailCtx.fillRect(centerX - width/2, y, fillWidth, height);
+    trailCtx.shadowColor = vDetectionProgress > 50 ? '#00FF00' : '#FFD700';
+    trailCtx.shadowBlur = 15;
+    trailCtx.beginPath();
+    trailCtx.roundRect(centerX - width/2, y, Math.max(fillWidth, radius * 2), height, radius);
+    trailCtx.fill();
     
-    // Text
+    // Percentage text
+    trailCtx.shadowBlur = 0;
     trailCtx.fillStyle = '#FFFFFF';
-    trailCtx.font = 'bold 12px Arial';
+    trailCtx.font = 'bold 14px Poppins, sans-serif';
     trailCtx.textAlign = 'center';
-    trailCtx.fillText(`${Math.round(vDetectionProgress)}%`, centerX, y + height + 15);
+    trailCtx.fillText(`${Math.round(vDetectionProgress)}%`, centerX, y + height + 22);
+    
+    // Status text
+    let statusText = vDetectionProgress < 40 ? '✋ Keep drawing...' : 
+                     vDetectionProgress < 70 ? '✌️ Almost there!' : '🎄 Perfect!';
+    trailCtx.font = '12px Poppins, sans-serif';
+    trailCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    trailCtx.fillText(statusText, centerX, y + height + 40);
+    
+    trailCtx.restore();
 }
 
-// Draw the trail line with gradient
+// Draw trail line
 function drawTrailLine() {
     if (fingerTrail.length < 2) return;
     
-    // Draw main trail
+    // Glow effect
+    trailCtx.save();
+    trailCtx.shadowColor = vDetectionProgress > 50 ? '#00FF00' : '#FFD700';
+    trailCtx.shadowBlur = 30;
+    
+    // Main trail
     trailCtx.beginPath();
     trailCtx.moveTo(fingerTrail[0].screenX, fingerTrail[0].screenY);
     
     for (let i = 1; i < fingerTrail.length; i++) {
         const p = fingerTrail[i];
-        trailCtx.lineTo(p.screenX, p.screenY);
+        const prev = fingerTrail[i - 1];
+        
+        // Smooth curve
+        const cpX = (prev.screenX + p.screenX) / 2;
+        const cpY = (prev.screenY + p.screenY) / 2;
+        trailCtx.quadraticCurveTo(prev.screenX, prev.screenY, cpX, cpY);
     }
     
-    // Create gradient based on progress
+    const lastPoint = fingerTrail[fingerTrail.length - 1];
+    trailCtx.lineTo(lastPoint.screenX, lastPoint.screenY);
+    
+    // Gradient stroke
     const gradient = trailCtx.createLinearGradient(
         fingerTrail[0].screenX, fingerTrail[0].screenY,
-        fingerTrail[fingerTrail.length-1].screenX, fingerTrail[fingerTrail.length-1].screenY
+        lastPoint.screenX, lastPoint.screenY
     );
     
     if (vDetectionProgress < 50) {
-        gradient.addColorStop(0, 'rgba(255, 107, 107, 0.3)');
-        gradient.addColorStop(1, 'rgba(255, 215, 0, 0.9)');
+        gradient.addColorStop(0, 'rgba(255, 107, 107, 0.4)');
+        gradient.addColorStop(0.5, 'rgba(255, 215, 0, 0.8)');
+        gradient.addColorStop(1, 'rgba(255, 215, 0, 1)');
     } else {
         gradient.addColorStop(0, 'rgba(255, 215, 0, 0.5)');
-        gradient.addColorStop(1, 'rgba(0, 255, 0, 1)');
+        gradient.addColorStop(0.5, 'rgba(50, 205, 50, 0.9)');
+        gradient.addColorStop(1, 'rgba(0, 255, 255, 1)');
     }
     
     trailCtx.strokeStyle = gradient;
-    trailCtx.lineWidth = 4;
+    trailCtx.lineWidth = 6;
     trailCtx.lineCap = 'round';
     trailCtx.lineJoin = 'round';
     trailCtx.stroke();
     
-    // Draw glowing effect
-    trailCtx.shadowColor = vDetectionProgress > 50 ? '#00FF00' : '#FFD700';
-    trailCtx.shadowBlur = 20;
-    trailCtx.stroke();
-    trailCtx.shadowBlur = 0;
+    trailCtx.restore();
     
-    // Draw points at start, lowest, and current position
+    // Draw key points
     drawKeyPoints();
 }
 
-// Draw key points on the trail
+// Draw key points
 function drawKeyPoints() {
     if (fingerTrail.length < 3) return;
     
     const points = fingerTrail;
     const lowest = findLowestPoint(points);
     
-    // Start point (green)
-    drawPoint(points[0].screenX, points[0].screenY, '#00FF00', 'START');
+    // Start point
+    drawGlowPoint(points[0].screenX, points[0].screenY, '#32CD32', 10, 'START');
     
-    // Lowest point (red) - only if in middle
+    // Bottom V point
     if (lowest.index > 2 && lowest.index < points.length - 2) {
-        drawPoint(points[lowest.index].screenX, points[lowest.index].screenY, '#FF0000', 'V');
+        drawGlowPoint(
+            points[lowest.index].screenX, 
+            points[lowest.index].screenY, 
+            '#FF6347', 12, 'V'
+        );
     }
     
-    // Current point (gold)
+    // Current point
     const last = points[points.length - 1];
-    drawPoint(last.screenX, last.screenY, '#FFD700', '');
+    drawGlowPoint(last.screenX, last.screenY, '#FFD700', 14, '');
 }
 
-// Draw a single point with label
-function drawPoint(x, y, color, label) {
-    trailCtx.beginPath();
-    trailCtx.arc(x, y, 8, 0, Math.PI * 2);
-    trailCtx.fillStyle = color;
-    trailCtx.shadowColor = color;
-    trailCtx.shadowBlur = 15;
-    trailCtx.fill();
-    trailCtx.shadowBlur = 0;
+// Draw glowing point
+function drawGlowPoint(x, y, color, size, label) {
+    trailCtx.save();
     
+    // Outer glow
+    const gradient = trailCtx.createRadialGradient(x, y, 0, x, y, size * 2);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.5, color + '80');
+    gradient.addColorStop(1, 'transparent');
+    
+    trailCtx.fillStyle = gradient;
+    trailCtx.beginPath();
+    trailCtx.arc(x, y, size * 2, 0, Math.PI * 2);
+    trailCtx.fill();
+    
+    // Inner point
+    trailCtx.shadowColor = color;
+    trailCtx.shadowBlur = 20;
+    trailCtx.fillStyle = color;
+    trailCtx.beginPath();
+    trailCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+    trailCtx.fill();
+    
+    // Label
     if (label) {
+        trailCtx.shadowBlur = 5;
         trailCtx.fillStyle = '#FFFFFF';
-        trailCtx.font = 'bold 10px Arial';
+        trailCtx.font = 'bold 11px Poppins, sans-serif';
         trailCtx.textAlign = 'center';
-        trailCtx.fillText(label, x, y - 15);
+        trailCtx.fillText(label, x, y - size - 5);
     }
+    
+    trailCtx.restore();
 }
 
-// Draw a single sparkle
+// Draw sparkle
 function drawSparkle(s) {
     trailCtx.save();
-    trailCtx.translate(s.x, s.y);
-    trailCtx.rotate(s.rotation);
     trailCtx.globalAlpha = s.life;
     
-    // Draw star shape
-    trailCtx.fillStyle = s.color;
-    trailCtx.shadowColor = s.color;
-    trailCtx.shadowBlur = 10;
-    
-    // Draw 4-pointed star
-    const size = s.size * s.life;
-    trailCtx.beginPath();
-    for (let i = 0; i < 4; i++) {
-        const angle = (i / 4) * Math.PI * 2 - Math.PI / 2;
-        const outerX = Math.cos(angle) * size;
-        const outerY = Math.sin(angle) * size;
-        const innerAngle = angle + Math.PI / 4;
-        const innerX = Math.cos(innerAngle) * size * 0.4;
-        const innerY = Math.sin(innerAngle) * size * 0.4;
-        
-        if (i === 0) {
-            trailCtx.moveTo(outerX, outerY);
-        } else {
-            trailCtx.lineTo(outerX, outerY);
+    // Draw trail
+    if (s.trail.length > 1) {
+        trailCtx.beginPath();
+        trailCtx.moveTo(s.trail[0].x, s.trail[0].y);
+        for (let i = 1; i < s.trail.length; i++) {
+            trailCtx.lineTo(s.trail[i].x, s.trail[i].y);
         }
-        trailCtx.lineTo(innerX, innerY);
+        trailCtx.strokeStyle = s.color + Math.floor(s.life * 50).toString(16).padStart(2, '0');
+        trailCtx.lineWidth = s.size * s.life * 0.5;
+        trailCtx.stroke();
     }
-    trailCtx.closePath();
-    trailCtx.fill();
+    
+    trailCtx.translate(s.x, s.y);
+    trailCtx.rotate(s.rotation);
+    
+    trailCtx.shadowColor = s.color;
+    trailCtx.shadowBlur = 15;
+    trailCtx.fillStyle = s.color;
+    
+    const size = s.size * s.life;
+    
+    if (s.type === 'star') {
+        // 4-pointed star
+        trailCtx.beginPath();
+        for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2 - Math.PI / 2;
+            const outerX = Math.cos(angle) * size;
+            const outerY = Math.sin(angle) * size;
+            const innerAngle = angle + Math.PI / 4;
+            const innerX = Math.cos(innerAngle) * size * 0.35;
+            const innerY = Math.sin(innerAngle) * size * 0.35;
+            
+            if (i === 0) trailCtx.moveTo(outerX, outerY);
+            else trailCtx.lineTo(outerX, outerY);
+            trailCtx.lineTo(innerX, innerY);
+        }
+        trailCtx.closePath();
+        trailCtx.fill();
+    } else {
+        // Circle with glow
+        trailCtx.beginPath();
+        trailCtx.arc(0, 0, size, 0, Math.PI * 2);
+        trailCtx.fill();
+    }
     
     trailCtx.restore();
 }
@@ -546,7 +670,7 @@ function clearTrail() {
     }
 }
 
-// Reset V gesture system (for retry)
+// Reset system
 function resetVGestureSystem() {
     vGestureDetected = false;
     fingerTrail = [];
@@ -565,7 +689,22 @@ function resetVGestureSystem() {
     }
 }
 
-// Check if V gesture has been detected
+// Check completion
 function isVGestureCompleted() {
     return vGestureDetected;
+}
+
+// Polyfill for roundRect
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        this.moveTo(x + r, y);
+        this.arcTo(x + w, y, x + w, y + h, r);
+        this.arcTo(x + w, y + h, x, y + h, r);
+        this.arcTo(x, y + h, x, y, r);
+        this.arcTo(x, y, x + w, y, r);
+        this.closePath();
+        return this;
+    };
 }

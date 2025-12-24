@@ -35,15 +35,49 @@
     <!-- V Gesture Trail Canvas (for drawing sparkle trail) -->
     <canvas id="v-trail-canvas"></canvas>
     
-    <!-- V Gesture Hint -->
+    <!-- V Gesture Hint - Enhanced -->
     <div id="v-gesture-hint">
+        <!-- Floating particles inside -->
+        <div class="hint-particles">
+            <span class="particle p1">✨</span>
+            <span class="particle p2">⭐</span>
+            <span class="particle p3">❄</span>
+            <span class="particle p4">✨</span>
+            <span class="particle p5">🌟</span>
+            <span class="particle p6">❄</span>
+            <span class="particle p7">✨</span>
+            <span class="particle p8">⭐</span>
+        </div>
+        
+        <!-- Glowing orbs -->
+        <div class="glow-orb orb1"></div>
+        <div class="glow-orb orb2"></div>
+        <div class="glow-orb orb3"></div>
+        
         <div class="v-hint-icon">✌️</div>
-        <div class="v-hint-text">Vẽ chữ <span class="v-letter">V</span> trong không khí để bắt đầu</div>
-        <div class="v-hint-subtext">Draw a V in the air to start</div>
+        <div class="v-hint-text">Vẽ chữ <span class="v-letter">V</span> để bắt đầu phép màu</div>
+        <div class="v-hint-subtext">~ Draw a V in the air to start the magic ~</div>
         <div class="v-hint-animation">
             <svg viewBox="0 0 100 80" class="v-shape-svg">
-                <path class="v-path" d="M 10 10 L 50 70 L 90 10" fill="none" stroke="#FFD700" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs>
+                    <linearGradient id="vGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#FFD700"/>
+                        <stop offset="50%" style="stop-color:#FF6347"/>
+                        <stop offset="100%" style="stop-color:#32CD32"/>
+                    </linearGradient>
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <path class="v-path" d="M 10 10 L 50 70 L 90 10" fill="none" stroke="url(#vGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
             </svg>
+        </div>
+        <div class="v-hint-instruction">
+            <span class="instruction-arrow">← xuống ↓ lên →</span>
         </div>
     </div>
     
