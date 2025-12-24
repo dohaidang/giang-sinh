@@ -12,6 +12,13 @@ const HAND_CONNECTIONS = [
     [5, 9], [9, 13], [13, 17]                 // Palm
 ];
 
+// Pre-start camera tracking state
+let preStartHandsInstance = null;
+let preStartCameraInstance = null;
+let isPreStartCameraActive = false;
+let preStartCanvas = null;
+let preStartCtx = null;
+
 // Draw hand landmarks and skeleton
 function drawHandLandmarks(ctx, landmarks, width, height) {
     if (!landmarks || landmarks.length === 0) return;
@@ -122,6 +129,254 @@ function drawStateLabel(ctx, state, width, height) {
     ctx.shadowBlur = 0;
 }
 
+// Draw pre-start label (for V gesture mode)
+function drawPreStartLabel(ctx, width, height, hasHand) {
+    const labelHeight = 18;
+    
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(0, height - labelHeight, width, labelHeight);
+    
+    // Top border
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, height - labelHeight);
+    ctx.lineTo(width, height - labelHeight);
+    ctx.stroke();
+    
+    // Text with shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 2;
+    ctx.fillStyle = hasHand ? '#00FF00' : '#FFD700';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(hasHand ? '✌️ VẼ CHỮ V' : '✋ ĐƯA TAY VÀO', width / 2, height - labelHeight / 2);
+    ctx.shadowBlur = 0;
+}
+
+// Draw V gesture indicator on preview
+function drawVGestureIndicator(ctx, width, height) {
+    const boxWidth = 60;
+    const boxHeight = 22;
+    const padding = 5;
+    
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillRect(padding, padding, boxWidth, boxHeight);
+    
+    // Border with glow
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(padding, padding, boxWidth, boxHeight);
+    
+    // Text
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 2;
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✌️ DRAW V', padding + 3, padding + boxHeight / 2);
+    ctx.shadowBlur = 0;
+}
+
+// ==========================================
+// PRE-START CAMERA FOR V GESTURE DETECTION
+// ==========================================
+
+// Initialize camera immediately when page loads (for V gesture detection)
+function initPreStartCamera() {
+    if (isPreStartCameraActive) return;
+    
+    // Check if MediaPipe is available
+    if (typeof Hands === 'undefined') {
+        console.warn('MediaPipe not loaded yet, retrying in 500ms...');
+        setTimeout(initPreStartCamera, 500);
+        return;
+    }
+    
+    console.log('Initializing pre-start camera for V gesture detection...');
+    
+    const video = document.getElementsByClassName('input_video')[0];
+    if (!video) {
+        console.error('Video element not found');
+        return;
+    }
+    
+    // Setup camera preview canvas
+    preStartCanvas = document.getElementById('camera-preview');
+    if (preStartCanvas) {
+        preStartCanvas.width = 200;
+        preStartCanvas.height = 150;
+        preStartCtx = preStartCanvas.getContext('2d');
+        preStartCtx.imageSmoothingEnabled = true;
+        preStartCanvas.style.display = 'block';
+    }
+    
+    // Initialize V gesture system
+    if (typeof initVGestureSystem === 'function') {
+        initVGestureSystem();
+    }
+    
+    try {
+        preStartHandsInstance = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        
+        preStartHandsInstance.setOptions({ 
+            maxNumHands: 1,  // Only track 1 hand for V gesture
+            modelComplexity: 0,  // Lighter model for faster detection
+            minDetectionConfidence: 0.5, 
+            minTrackingConfidence: 0.5 
+        });
+        
+        preStartHandsInstance.onResults(onPreStartHandResults);
+        
+    } catch (e) {
+        console.error('Failed to initialize pre-start hands:', e);
+        return;
+    }
+    
+    // Check if Camera is available
+    if (typeof Camera === 'undefined') {
+        console.warn('Camera utils not loaded yet, retrying in 500ms...');
+        setTimeout(initPreStartCamera, 500);
+        return;
+    }
+    
+    try {
+        preStartCameraInstance = new Camera(video, {
+            onFrame: async () => {
+                if (preStartHandsInstance && !isVGestureCompleted()) {
+                    try {
+                        await preStartHandsInstance.send({image: video});
+                    } catch (e) {
+                        console.error('Error sending frame:', e);
+                    }
+                }
+            },
+            width: 320,
+            height: 240
+        });
+        
+        preStartCameraInstance.start()
+            .then(() => {
+                isPreStartCameraActive = true;
+                console.log('Pre-start camera activated successfully');
+                
+                // Show V gesture hint
+                const vHint = document.getElementById('v-gesture-hint');
+                if (vHint) {
+                    vHint.style.display = 'block';
+                    vHint.style.opacity = '1';
+                }
+            })
+            .catch(error => {
+                console.error('Pre-start camera error:', error);
+                // Fall back to click-to-start
+                showClickToStart();
+            });
+            
+    } catch (e) {
+        console.error('Failed to initialize pre-start camera:', e);
+        showClickToStart();
+    }
+}
+
+// Handle hand results for V gesture detection (pre-start phase)
+function onPreStartHandResults(results) {
+    // Draw camera preview
+    if (preStartCtx && preStartCanvas) {
+        const canvasWidth = preStartCanvas.width;
+        const canvasHeight = preStartCanvas.height;
+        
+        // Clear canvas
+        preStartCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        
+        // Draw video frame
+        if (results.image) {
+            preStartCtx.drawImage(results.image, 0, 0, canvasWidth, canvasHeight);
+        }
+        
+        // Check if hand is detected
+        const hasHand = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
+        
+        // Draw hand landmarks if detected
+        if (hasHand) {
+            results.multiHandLandmarks.forEach(landmarks => {
+                if (landmarks && landmarks.length > 0) {
+                    drawHandLandmarks(preStartCtx, landmarks, canvasWidth, canvasHeight);
+                }
+            });
+            
+            // Draw V gesture indicator
+            drawVGestureIndicator(preStartCtx, canvasWidth, canvasHeight);
+        }
+        
+        // Draw pre-start label
+        drawPreStartLabel(preStartCtx, canvasWidth, canvasHeight, hasHand);
+    }
+    
+    // Skip V gesture processing if already completed or system started
+    if (isVGestureCompleted() || isSystemStarted) return;
+    
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        
+        // Get index finger tip (landmark 8)
+        const indexTip = landmarks[8];
+        if (indexTip) {
+            // Mirror the X coordinate (camera is mirrored)
+            const mirroredX = 1 - indexTip.x;
+            
+            // Add point to V gesture trail
+            if (typeof addTrailPoint === 'function') {
+                addTrailPoint(mirroredX, indexTip.y);
+            }
+        }
+    }
+}
+
+// Show click-to-start button as fallback
+function showClickToStart() {
+    const btnStart = document.getElementById('btnStart');
+    if (btnStart) {
+        btnStart.style.display = 'inline-block';
+    }
+    
+    const vHint = document.getElementById('v-gesture-hint');
+    if (vHint) {
+        vHint.style.display = 'none';
+    }
+}
+
+// Stop pre-start camera when main system starts
+function stopPreStartCamera() {
+    if (preStartCameraInstance) {
+        preStartCameraInstance.stop();
+        preStartCameraInstance = null;
+    }
+    preStartHandsInstance = null;
+    isPreStartCameraActive = false;
+}
+
+// ==========================================
+// MAIN SYSTEM START (called after V gesture or button click)
+// ==========================================
+
+// This function is called when V gesture is detected
+function startMainExperience() {
+    if (isSystemStarted) return;
+    
+    // Stop pre-start camera
+    stopPreStartCamera();
+    
+    // Start the main system
+    startSystem();
+}
+
 async function startSystem() {
     if (hasError) return;
     if (isSystemStarted) return;
@@ -129,6 +384,12 @@ async function startSystem() {
     isSystemStarted = true;
     document.getElementById('btnStart').style.display = 'none';
     document.getElementById('toggle-controls').style.display = 'flex';
+    
+    // Hide V gesture hint
+    const vHint = document.getElementById('v-gesture-hint');
+    if (vHint) {
+        vHint.style.display = 'none';
+    }
     
     // Try to play music
     try {
@@ -463,4 +724,3 @@ function handleTouchEnd(e) {
     tapCount = 0;
     initialDistance = 0;
 }
-

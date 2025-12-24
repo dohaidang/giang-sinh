@@ -32,6 +32,21 @@
 
     <div id="error-log"></div>
     
+    <!-- V Gesture Trail Canvas (for drawing sparkle trail) -->
+    <canvas id="v-trail-canvas"></canvas>
+    
+    <!-- V Gesture Hint -->
+    <div id="v-gesture-hint">
+        <div class="v-hint-icon">✌️</div>
+        <div class="v-hint-text">Vẽ chữ <span class="v-letter">V</span> trong không khí để bắt đầu</div>
+        <div class="v-hint-subtext">Draw a V in the air to start</div>
+        <div class="v-hint-animation">
+            <svg viewBox="0 0 100 80" class="v-shape-svg">
+                <path class="v-path" d="M 10 10 L 50 70 L 90 10" fill="none" stroke="#FFD700" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+    </div>
+    
     <!-- Controls Toggle Button -->
     <div id="toggle-controls" onclick="toggleControls()" title="Toggle Controls">⚙️</div>
     
@@ -69,7 +84,8 @@
         <div class="guide" id="guide-text">
             🖐 <b>Open:</b> Explode &nbsp;|&nbsp; 🫶 <b>Heart:</b> Love &nbsp;|&nbsp; ✊ <b>Fist:</b> Tree
         </div>
-        <button id="btnStart" onclick="startSystem()">START MAGIC</button>
+        <!-- Fallback button (hidden by default, shown if camera fails) -->
+        <button id="btnStart" onclick="startSystem()" style="display: none;">START MAGIC</button>
     </div>
 
     <div id="canvas-container"></div>
@@ -83,6 +99,20 @@
     <script src="js/scene.js"></script>
     <script src="js/controls.js"></script>
     <script src="js/keyboard.js"></script>
+    <script src="js/vgesture.js"></script>
     <script src="js/hands.js"></script>
+    
+    <!-- Initialize V gesture detection when page loads -->
+    <script>
+        // Wait for all resources to load, then start V gesture detection
+        window.addEventListener('load', function() {
+            // Wait a bit for MediaPipe to fully initialize
+            setTimeout(function() {
+                if (typeof initPreStartCamera === 'function') {
+                    initPreStartCamera();
+                }
+            }, 1000);
+        });
+    </script>
 </body>
 </html>
