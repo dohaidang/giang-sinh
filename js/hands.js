@@ -59,6 +59,7 @@ function drawHandLandmarks(ctx, landmarks, width, height) {
 }
 
 // Draw gesture indicator
+// Draw gesture indicator (flipped because camera preview is mirrored)
 function drawGestureIndicator(ctx, gesture, width, height) {
     const indicators = {
         'TREE': { icon: '👊', color: '#FFD700', text: 'FIST' },
@@ -74,27 +75,35 @@ function drawGestureIndicator(ctx, gesture, width, height) {
     const boxHeight = 22;
     const padding = 5;
     
+    // Position on the RIGHT side (will appear on left due to mirror)
+    const boxX = width - boxWidth - padding;
+    
     // Background with rounded corners effect
     ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-    ctx.fillRect(padding, padding, boxWidth, boxHeight);
+    ctx.fillRect(boxX, padding, boxWidth, boxHeight);
     
     // Border with glow
     ctx.strokeStyle = indicator.color;
     ctx.lineWidth = 2;
-    ctx.strokeRect(padding, padding, boxWidth, boxHeight);
+    ctx.strokeRect(boxX, padding, boxWidth, boxHeight);
     
-    // Text with shadow for better visibility
+    // Text with shadow - flip to counter CSS mirror
+    ctx.save();
+    ctx.translate(boxX + boxWidth / 2, padding + boxHeight / 2);
+    ctx.scale(-1, 1); // Flip text
+    
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
     ctx.shadowBlur = 2;
     ctx.fillStyle = indicator.color;
     ctx.font = 'bold 10px Arial';
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(indicator.icon + ' ' + indicator.text, padding + 3, padding + boxHeight / 2);
+    ctx.fillText(indicator.icon + ' ' + indicator.text, 0, 0);
     ctx.shadowBlur = 0;
+    ctx.restore();
 }
 
-// Draw state label
+// Draw state label (flipped because camera preview is mirrored)
 function drawStateLabel(ctx, state, width, height) {
     const stateTexts = {
         'TREE': '🌲 TREE',
@@ -118,18 +127,24 @@ function drawStateLabel(ctx, state, width, height) {
     ctx.lineTo(width, height - labelHeight);
     ctx.stroke();
     
-    // Text with shadow
+    // Text with shadow - flip horizontally to counter CSS mirror
+    ctx.save();
+    ctx.translate(width / 2, height - labelHeight / 2);
+    ctx.scale(-1, 1); // Flip text to counter CSS scaleX(-1)
+    
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
     ctx.shadowBlur = 2;
     ctx.fillStyle = '#FFD700';
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(stateText, width / 2, height - labelHeight / 2);
+    ctx.fillText(stateText, 0, 0);
     ctx.shadowBlur = 0;
+    ctx.restore();
 }
 
 // Draw pre-start label (for V gesture mode)
+// Draw pre-start label (flipped because camera preview is mirrored)
 function drawPreStartLabel(ctx, width, height, hasHand) {
     const labelHeight = 18;
     
@@ -145,41 +160,55 @@ function drawPreStartLabel(ctx, width, height, hasHand) {
     ctx.lineTo(width, height - labelHeight);
     ctx.stroke();
     
-    // Text with shadow
+    // Text with shadow - flip to counter CSS mirror
+    ctx.save();
+    ctx.translate(width / 2, height - labelHeight / 2);
+    ctx.scale(-1, 1); // Flip text
+    
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
     ctx.shadowBlur = 2;
     ctx.fillStyle = hasHand ? '#00FF00' : '#FFD700';
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(hasHand ? '✌️ VẼ CHỮ V' : '✋ ĐƯA TAY VÀO', width / 2, height - labelHeight / 2);
+    ctx.fillText(hasHand ? '✌️ VẼ CHỮ V' : '✋ ĐƯA TAY VÀO', 0, 0);
     ctx.shadowBlur = 0;
+    ctx.restore();
 }
 
 // Draw V gesture indicator on preview
+// Draw V gesture indicator (flipped because camera preview is mirrored)
 function drawVGestureIndicator(ctx, width, height) {
     const boxWidth = 60;
     const boxHeight = 22;
     const padding = 5;
     
+    // Position on RIGHT side (will appear on left due to mirror)
+    const boxX = width - boxWidth - padding;
+    
     // Background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-    ctx.fillRect(padding, padding, boxWidth, boxHeight);
+    ctx.fillRect(boxX, padding, boxWidth, boxHeight);
     
     // Border with glow
     ctx.strokeStyle = '#FFD700';
     ctx.lineWidth = 2;
-    ctx.strokeRect(padding, padding, boxWidth, boxHeight);
+    ctx.strokeRect(boxX, padding, boxWidth, boxHeight);
     
-    // Text
+    // Text - flip to counter CSS mirror
+    ctx.save();
+    ctx.translate(boxX + boxWidth / 2, padding + boxHeight / 2);
+    ctx.scale(-1, 1);
+    
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
     ctx.shadowBlur = 2;
     ctx.fillStyle = '#FFD700';
     ctx.font = 'bold 10px Arial';
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('✌️ DRAW V', padding + 3, padding + boxHeight / 2);
+    ctx.fillText('✌️ DRAW V', 0, 0);
     ctx.shadowBlur = 0;
+    ctx.restore();
 }
 
 // ==========================================
