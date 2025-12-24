@@ -26,6 +26,6 @@ const CONFIG = {
     treeBaseRadius: 35,
     isMobile: isMobile,
     isLowEndDevice: isLowEndDevice,
-    snowCount: isMobile ? 100 : (isLowEndDevice ? 150 : 200) // Snow particles based on device
+    snowCount: isMobile ? 300 : (isLowEndDevice ? 500 : 800) // More snow particles!
 };
 

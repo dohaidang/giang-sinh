@@ -32,6 +32,12 @@ let snowGeometry = null;
 let snowMaterial = null;
 let snowPoints = null;
 
+// Tree decoration effects
+let treeSpiralLights = null;
+let treeGlowAura = null;
+let treeTwinkleStars = null;
+let treeOrnaments = null;
+
 function init3D() {
     try {
         // Check if Three.js is loaded
@@ -61,6 +67,7 @@ function init3D() {
         createDecorations();
         initFireworkSystem();
         initSnowSystem();
+        initTreeEffects();
         animate();
     } catch (e) {
         console.error('Error initializing 3D scene:', e);
@@ -267,22 +274,31 @@ function initSnowSystem() {
     const sizes = new Float32Array(snowCount);
     const speeds = new Float32Array(snowCount);
     const windOffsets = new Float32Array(snowCount);
+    const rotations = new Float32Array(snowCount); // For spinning snowflakes
     
-    // Initialize snow particles
+    // Initialize snow particles - spread across entire view
     for (let i = 0; i < snowCount; i++) {
-        // Random position in a wide area (closer to camera)
-        positions[i * 3] = (Math.random() - 0.5) * 200; // x
-        positions[i * 3 + 1] = Math.random() * 150 + 50; // y (start from top)
-        positions[i * 3 + 2] = (Math.random() - 0.5) * 100 + 50; // z (in front of scene, near camera)
+        // Random position covering entire screen area
+        positions[i * 3] = (Math.random() - 0.5) * 300; // x - wider spread
+        positions[i * 3 + 1] = Math.random() * 200 - 50; // y - start anywhere vertically
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 200 + 30; // z - more depth variation
         
-        // Random size (larger for better visibility)
-        sizes[i] = 1.5 + Math.random() * 2.5;
+        // Varied sizes - some tiny, some larger flakes
+        const sizeType = Math.random();
+        if (sizeType < 0.5) {
+            sizes[i] = 0.8 + Math.random() * 1.2; // Small flakes (50%)
+        } else if (sizeType < 0.85) {
+            sizes[i] = 2.0 + Math.random() * 2.0; // Medium flakes (35%)
+        } else {
+            sizes[i] = 4.0 + Math.random() * 3.0; // Large flakes (15%)
+        }
         
-        // Random fall speed
-        speeds[i] = 0.15 + Math.random() * 0.25;
+        // Varied fall speeds - smaller = slower
+        speeds[i] = 0.1 + Math.random() * 0.3 + (sizes[i] * 0.05);
         
         // Random wind offset for variation
         windOffsets[i] = Math.random() * Math.PI * 2;
+        rotations[i] = Math.random() * Math.PI * 2;
     }
     
     snowGeometry = new THREE.BufferGeometry();
@@ -294,37 +310,55 @@ function initSnowSystem() {
         sizes: sizes,
         speeds: speeds,
         windOffsets: windOffsets,
+        rotations: rotations,
         count: snowCount
     };
     
-    // Create snow texture (simple white circle)
+    // Create better snowflake texture
     const snowCanvas = document.createElement('canvas');
-    snowCanvas.width = 32;
-    snowCanvas.height = 32;
+    snowCanvas.width = 64;
+    snowCanvas.height = 64;
     const snowCtx = snowCanvas.getContext('2d');
-    const gradient = snowCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    
+    // Clear canvas
+    snowCtx.clearRect(0, 0, 64, 64);
+    
+    // Draw soft glowing snowflake
+    const gradient = snowCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)');
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.95)');
+    gradient.addColorStop(0.4, 'rgba(240, 248, 255, 0.7)'); // Slight blue tint
+    gradient.addColorStop(0.7, 'rgba(200, 220, 255, 0.3)');
+    gradient.addColorStop(1, 'rgba(200, 220, 255, 0)');
     snowCtx.fillStyle = gradient;
-    snowCtx.fillRect(0, 0, 32, 32);
+    snowCtx.beginPath();
+    snowCtx.arc(32, 32, 32, 0, Math.PI * 2);
+    snowCtx.fill();
+    
+    // Add sparkle highlight
+    snowCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    snowCtx.beginPath();
+    snowCtx.arc(26, 26, 6, 0, Math.PI * 2);
+    snowCtx.fill();
+    
     const snowTexture = new THREE.CanvasTexture(snowCanvas);
     
     snowMaterial = new THREE.PointsMaterial({
-        size: 4.0, // Larger size for better visibility
+        size: 3.0,
         sizeAttenuation: true,
         map: snowTexture,
         transparent: true,
-        opacity: 0.9, // Higher opacity for better visibility
+        opacity: 0.95,
         color: 0xFFFFFF,
-        blending: THREE.AdditiveBlending, // Additive blending for glow effect
+        blending: THREE.AdditiveBlending,
         depthWrite: false
     });
     
     snowPoints = new THREE.Points(snowGeometry, snowMaterial);
-    // Render snow behind photos
-    snowPoints.renderOrder = 1;
+    snowPoints.renderOrder = 2;
     scene.add(snowPoints);
+    
+    console.log('Snow system created:', snowCount, 'snowflakes');
 }
 
 // Update snow particles
@@ -334,35 +368,466 @@ function updateSnow(time) {
     const geo = snowGeometry.userData;
     if (!geo || !geo.positions) return;
     
-    const windStrength = Math.sin(time * 0.3) * 0.5; // Increased wind strength
+    // Dynamic wind - changes direction and strength over time
+    const windX = Math.sin(time * 0.2) * 0.8 + Math.sin(time * 0.7) * 0.3;
+    const windZ = Math.cos(time * 0.15) * 0.4;
     
     for (let i = 0; i < geo.count; i++) {
-        // Update Y position (fall down)
+        const size = geo.sizes[i];
+        const windOffset = geo.windOffsets[i];
+        
+        // Fall speed varies with size (bigger = faster)
         geo.positions[i * 3 + 1] -= geo.speeds[i];
         
-        // Wind effect (horizontal movement) - more visible
-        geo.positions[i * 3] += windStrength * Math.sin(time * 0.5 + geo.windOffsets[i]) * 0.2;
+        // Wind effect - smaller flakes affected more by wind
+        const windFactor = 1.0 / (size * 0.5 + 0.5);
+        geo.positions[i * 3] += windX * Math.sin(time * 0.5 + windOffset) * 0.15 * windFactor;
+        geo.positions[i * 3 + 2] += windZ * Math.cos(time * 0.4 + windOffset) * 0.1 * windFactor;
         
-        // Slight rotation effect (swaying) - more visible
-        geo.positions[i * 3 + 2] += Math.sin(time * 0.4 + geo.windOffsets[i]) * 0.1;
+        // Gentle swaying motion
+        geo.positions[i * 3] += Math.sin(time * 2 + windOffset) * 0.03;
         
         // Reset particle when it falls below view
-        if (geo.positions[i * 3 + 1] < -100) {
-            geo.positions[i * 3] = (Math.random() - 0.5) * 200; // Random x
-            geo.positions[i * 3 + 1] = 150; // Reset to top
-            geo.positions[i * 3 + 2] = (Math.random() - 0.5) * 100 + 50; // Random z (near camera)
+        if (geo.positions[i * 3 + 1] < -80) {
+            geo.positions[i * 3] = (Math.random() - 0.5) * 300;
+            geo.positions[i * 3 + 1] = 150 + Math.random() * 50;
+            geo.positions[i * 3 + 2] = (Math.random() - 0.5) * 200 + 30;
         }
         
-        // Keep particles in bounds horizontally
-        if (Math.abs(geo.positions[i * 3]) > 120) {
-            geo.positions[i * 3] = (Math.random() - 0.5) * 200;
+        // Keep particles in bounds horizontally (wider bounds)
+        if (Math.abs(geo.positions[i * 3]) > 180) {
+            geo.positions[i * 3] = -geo.positions[i * 3] * 0.5;
         }
-        if (geo.positions[i * 3 + 2] < 0 || geo.positions[i * 3 + 2] > 150) {
-            geo.positions[i * 3 + 2] = (Math.random() - 0.5) * 100 + 50;
+        if (geo.positions[i * 3 + 2] < -50 || geo.positions[i * 3 + 2] > 180) {
+            geo.positions[i * 3 + 2] = (Math.random() - 0.5) * 200 + 30;
         }
     }
     
     snowGeometry.attributes.position.needsUpdate = true;
+}
+
+// ==========================================
+// TREE DECORATION EFFECTS
+// ==========================================
+
+function initTreeEffects() {
+    createSpiralLights();
+    createTreeGlowAura();
+    createTwinkleStars();
+    createTreeOrnaments();
+}
+
+// Spiral lights wrapping around the tree - Christmas LED string lights
+function createSpiralLights() {
+    const lightCount = 120; // Fewer but bigger, more visible lights
+    const positions = new Float32Array(lightCount * 3);
+    const colors = new Float32Array(lightCount * 3);
+    const sizes = new Float32Array(lightCount);
+    const phases = new Float32Array(lightCount);
+    
+    // Classic Christmas light colors - bright and saturated
+    const spiralColors = [
+        new THREE.Color(1.0, 0.0, 0.0),   // Bright Red
+        new THREE.Color(0.0, 1.0, 0.0),   // Bright Green  
+        new THREE.Color(0.0, 0.5, 1.0),   // Blue
+        new THREE.Color(1.0, 0.8, 0.0),   // Gold/Yellow
+        new THREE.Color(1.0, 0.0, 1.0),   // Magenta
+        new THREE.Color(0.0, 1.0, 1.0),   // Cyan
+    ];
+    
+    for (let i = 0; i < lightCount; i++) {
+        const t = i / lightCount;
+        const h = t * CONFIG.treeHeight * 0.95; // Don't go all the way to top
+        const y = h - CONFIG.treeHeight / 2;
+        
+        // Spiral around tree - positioned ON the surface, slightly outside
+        const spirals = 4; // Fewer spirals = more visible spacing
+        const theta = t * Math.PI * 2 * spirals;
+        // Position lights on the outer edge of the tree
+        const treeRadius = (1 - t) * CONFIG.treeBaseRadius;
+        const lightRadius = treeRadius * 1.08 + 1; // Just outside tree surface
+        
+        positions[i * 3] = lightRadius * Math.cos(theta);
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = lightRadius * Math.sin(theta);
+        
+        // Cycle through colors
+        const color = spiralColors[i % spiralColors.length];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+        
+        sizes[i] = 4.0;
+        phases[i] = i * 0.5; // Sequential phase for chasing effect
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.userData = { phases, baseColors: colors.slice(), baseSizes: sizes.slice() };
+    
+    // Create Christmas bulb texture - round glowing bulb
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    
+    // Outer glow
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.9)');
+    gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.6)');
+    gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.2)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    const material = new THREE.PointsMaterial({
+        size: 5.0,
+        sizeAttenuation: true,
+        map: texture,
+        transparent: true,
+        opacity: 1.0,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    treeSpiralLights = new THREE.Points(geometry, material);
+    treeSpiralLights.renderOrder = 5;
+    scene.add(treeSpiralLights);
+    
+    console.log('Spiral lights created:', lightCount, 'lights');
+}
+
+// Glowing aura around the tree
+function createTreeGlowAura() {
+    const auraCount = 80;
+    const positions = new Float32Array(auraCount * 3);
+    const sizes = new Float32Array(auraCount);
+    const phases = new Float32Array(auraCount);
+    
+    for (let i = 0; i < auraCount; i++) {
+        const t = Math.random();
+        const h = t * CONFIG.treeHeight;
+        const y = h - CONFIG.treeHeight / 2;
+        
+        // Position slightly outside tree
+        const maxR = (1 - t) * CONFIG.treeBaseRadius * 1.3;
+        const theta = Math.random() * Math.PI * 2;
+        
+        positions[i * 3] = maxR * Math.cos(theta);
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = maxR * Math.sin(theta);
+        
+        sizes[i] = 8 + Math.random() * 12;
+        phases[i] = Math.random() * Math.PI * 2;
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.userData = { phases, baseSizes: sizes.slice() };
+    
+    // Create soft glow texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, 'rgba(50, 255, 100, 0.4)');
+    gradient.addColorStop(0.3, 'rgba(50, 200, 80, 0.2)');
+    gradient.addColorStop(0.6, 'rgba(30, 150, 50, 0.1)');
+    gradient.addColorStop(1, 'rgba(0, 100, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    const material = new THREE.PointsMaterial({
+        size: 20,
+        sizeAttenuation: true,
+        map: texture,
+        transparent: true,
+        opacity: 0.8,
+        color: 0x50FF70,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    treeGlowAura = new THREE.Points(geometry, material);
+    treeGlowAura.renderOrder = 0;
+    scene.add(treeGlowAura);
+}
+
+// Twinkling stars around the tree
+function createTwinkleStars() {
+    const starCount = 60;
+    const positions = new Float32Array(starCount * 3);
+    const sizes = new Float32Array(starCount);
+    const phases = new Float32Array(starCount);
+    const colors = new Float32Array(starCount * 3);
+    
+    const starColors = [
+        new THREE.Color(0xFFFFFF),
+        new THREE.Color(0xFFD700),
+        new THREE.Color(0xFFF8DC),
+    ];
+    
+    for (let i = 0; i < starCount; i++) {
+        const t = Math.random();
+        const h = t * CONFIG.treeHeight;
+        const y = h - CONFIG.treeHeight / 2;
+        
+        // Position around tree
+        const maxR = (1 - t) * CONFIG.treeBaseRadius * 0.9;
+        const theta = Math.random() * Math.PI * 2;
+        
+        positions[i * 3] = maxR * Math.cos(theta) + (Math.random() - 0.5) * 5;
+        positions[i * 3 + 1] = y + (Math.random() - 0.5) * 3;
+        positions[i * 3 + 2] = maxR * Math.sin(theta) + (Math.random() - 0.5) * 5;
+        
+        sizes[i] = 1.5 + Math.random() * 2;
+        phases[i] = Math.random() * Math.PI * 2;
+        
+        const color = starColors[Math.floor(Math.random() * starColors.length)];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.userData = { phases, baseSizes: sizes.slice() };
+    
+    // Create star texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFF';
+    ctx.shadowColor = '#FFF';
+    ctx.shadowBlur = 10;
+    
+    // Draw 4-pointed star
+    ctx.beginPath();
+    ctx.moveTo(32, 0);
+    ctx.lineTo(36, 28);
+    ctx.lineTo(64, 32);
+    ctx.lineTo(36, 36);
+    ctx.lineTo(32, 64);
+    ctx.lineTo(28, 36);
+    ctx.lineTo(0, 32);
+    ctx.lineTo(28, 28);
+    ctx.closePath();
+    ctx.fill();
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    const material = new THREE.PointsMaterial({
+        size: 4.0,
+        sizeAttenuation: true,
+        map: texture,
+        transparent: true,
+        opacity: 1.0,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    treeTwinkleStars = new THREE.Points(geometry, material);
+    treeTwinkleStars.renderOrder = 3;
+    scene.add(treeTwinkleStars);
+}
+
+// Tree ornaments (baubles)
+function createTreeOrnaments() {
+    const ornamentCount = 40;
+    const positions = new Float32Array(ornamentCount * 3);
+    const colors = new Float32Array(ornamentCount * 3);
+    const sizes = new Float32Array(ornamentCount);
+    const phases = new Float32Array(ornamentCount);
+    
+    const ornamentColors = [
+        new THREE.Color(0xFF0000), // Red
+        new THREE.Color(0xFFD700), // Gold
+        new THREE.Color(0x0066FF), // Blue
+        new THREE.Color(0x9400D3), // Purple
+        new THREE.Color(0xFF1493), // Pink
+        new THREE.Color(0x00CED1), // Turquoise
+    ];
+    
+    for (let i = 0; i < ornamentCount; i++) {
+        const t = 0.1 + Math.random() * 0.8; // Avoid very top and bottom
+        const h = t * CONFIG.treeHeight;
+        const y = h - CONFIG.treeHeight / 2;
+        
+        const maxR = (1 - t) * CONFIG.treeBaseRadius * 0.85;
+        const theta = Math.random() * Math.PI * 2;
+        
+        positions[i * 3] = maxR * Math.cos(theta);
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = maxR * Math.sin(theta);
+        
+        const color = ornamentColors[Math.floor(Math.random() * ornamentColors.length)];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+        
+        sizes[i] = 3 + Math.random() * 2;
+        phases[i] = Math.random() * Math.PI * 2;
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.userData = { phases, baseSizes: sizes.slice() };
+    
+    // Create shiny bauble texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    
+    // Main circle
+    const gradient = ctx.createRadialGradient(28, 28, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)');
+    gradient.addColorStop(0.6, 'rgba(200, 200, 200, 0.6)');
+    gradient.addColorStop(1, 'rgba(100, 100, 100, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(32, 32, 30, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.beginPath();
+    ctx.arc(24, 24, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    const material = new THREE.PointsMaterial({
+        size: 6.0,
+        sizeAttenuation: true,
+        map: texture,
+        transparent: true,
+        opacity: 1.0,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    treeOrnaments = new THREE.Points(geometry, material);
+    treeOrnaments.renderOrder = 4;
+    scene.add(treeOrnaments);
+}
+
+// Update tree effects
+function updateTreeEffects(time) {
+    // Update spiral lights - Christmas chasing lights effect
+    if (treeSpiralLights && state === 'TREE') {
+        const geo = treeSpiralLights.geometry;
+        const sizes = geo.attributes.size.array;
+        const colors = geo.attributes.color.array;
+        const phases = geo.userData.phases;
+        const baseColors = geo.userData.baseColors;
+        const baseSizes = geo.userData.baseSizes;
+        
+        // Chasing light effect - lights turn on/off in sequence
+        const chaseSpeed = time * 3;
+        
+        for (let i = 0; i < phases.length; i++) {
+            // Chasing wave effect
+            const chaseWave = Math.sin(chaseSpeed - phases[i]);
+            const isOn = chaseWave > -0.3; // Light is "on" most of the time
+            
+            // Size pulsing when on
+            if (isOn) {
+                const pulse = 0.8 + 0.4 * Math.sin(time * 6 + phases[i]);
+                sizes[i] = (baseSizes ? baseSizes[i] : 4.0) * pulse;
+                
+                // Full brightness
+                colors[i * 3] = baseColors[i * 3];
+                colors[i * 3 + 1] = baseColors[i * 3 + 1];
+                colors[i * 3 + 2] = baseColors[i * 3 + 2];
+            } else {
+                // Dimmed
+                sizes[i] = (baseSizes ? baseSizes[i] : 4.0) * 0.3;
+                colors[i * 3] = baseColors[i * 3] * 0.2;
+                colors[i * 3 + 1] = baseColors[i * 3 + 1] * 0.2;
+                colors[i * 3 + 2] = baseColors[i * 3 + 2] * 0.2;
+            }
+        }
+        
+        geo.attributes.size.needsUpdate = true;
+        geo.attributes.color.needsUpdate = true;
+        treeSpiralLights.rotation.y = groupGold ? groupGold.rotation.y : time * 0.3;
+    }
+    
+    // Update glow aura
+    if (treeGlowAura && state === 'TREE') {
+        const geo = treeGlowAura.geometry;
+        const sizes = geo.attributes.size.array;
+        const phases = geo.userData.phases;
+        const baseSizes = geo.userData.baseSizes;
+        
+        for (let i = 0; i < phases.length; i++) {
+            const pulse = 0.7 + 0.3 * Math.sin(time * 2 + phases[i]);
+            sizes[i] = baseSizes[i] * pulse;
+        }
+        
+        geo.attributes.size.needsUpdate = true;
+        treeGlowAura.material.opacity = 0.4 + 0.2 * Math.sin(time * 1.5);
+        treeGlowAura.rotation.y = groupGold ? groupGold.rotation.y : time * 0.3;
+    }
+    
+    // Update twinkle stars
+    if (treeTwinkleStars && state === 'TREE') {
+        const geo = treeTwinkleStars.geometry;
+        const sizes = geo.attributes.size.array;
+        const phases = geo.userData.phases;
+        const baseSizes = geo.userData.baseSizes;
+        
+        for (let i = 0; i < phases.length; i++) {
+            // Random twinkling
+            const twinkle = Math.random() > 0.95 ? 2.0 : (0.3 + 0.7 * Math.sin(time * 10 + phases[i]));
+            sizes[i] = baseSizes[i] * twinkle;
+        }
+        
+        geo.attributes.size.needsUpdate = true;
+        treeTwinkleStars.rotation.y = groupGold ? groupGold.rotation.y : time * 0.3;
+    }
+    
+    // Update ornaments
+    if (treeOrnaments && state === 'TREE') {
+        const geo = treeOrnaments.geometry;
+        const sizes = geo.attributes.size.array;
+        const phases = geo.userData.phases;
+        const baseSizes = geo.userData.baseSizes;
+        
+        for (let i = 0; i < phases.length; i++) {
+            // Gentle size pulsing
+            const pulse = 0.9 + 0.1 * Math.sin(time * 3 + phases[i]);
+            sizes[i] = baseSizes[i] * pulse;
+        }
+        
+        geo.attributes.size.needsUpdate = true;
+        treeOrnaments.rotation.y = groupGold ? groupGold.rotation.y : time * 0.3;
+    }
+    
+    // Hide effects when not in TREE state
+    const visible = (state === 'TREE');
+    if (treeSpiralLights) treeSpiralLights.visible = visible;
+    if (treeGlowAura) treeGlowAura.visible = visible;
+    if (treeTwinkleStars) treeTwinkleStars.visible = visible;
+    if (treeOrnaments) treeOrnaments.visible = visible;
 }
 
 // Create firework burst at position
@@ -734,6 +1199,9 @@ function animate() {
         
         // Update snow
         updateSnow(time);
+        
+        // Update tree effects
+        updateTreeEffects(time);
     }
 
     photoMeshes.forEach((mesh, i) => {
